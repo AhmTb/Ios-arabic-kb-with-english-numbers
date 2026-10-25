@@ -13,7 +13,14 @@ def validate(bundle):
     with (bundle / "Info.plist").open("rb") as handle:
         info = plistlib.load(handle)
     binary = bundle / info["CFBundleExecutable"]
-    subprocess.run(["xcrun", "lipo", "-verify_arch", "arm64", str(binary)], check=True)
+    if not binary.is_file():
+        raise RuntimeError(f"Missing executable in {bundle.name}: {binary.name}")
+    result = subprocess.run(["xcrun", "lipo", "-archs", str(binary)], capture_output=True, text=True)
+    if result.returncode:
+        raise RuntimeError(f"Cannot inspect {bundle.name}: {result.stderr.strip()[:250]}")
+    architectures = result.stdout.split()
+    if "arm64" not in architectures:
+        raise RuntimeError(f"{bundle.name} architectures: {architectures}; arm64 required")
     return info
 
 main_info = validate(app)
